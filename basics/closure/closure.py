@@ -40,6 +40,7 @@ def f_v2():
     def inner(value):
         data.append(value)
         return data
+
     """
      对data变量重新赋值, 证明闭包都实现机制不是对变量的简单复制
     """
@@ -53,6 +54,19 @@ print(g_v2(1))
 print(g_v2(2))
 
 
+def fab_outer():
+    a = 0
+    b = 1
+
+    def fab_inner():
+        nonlocal a
+        nonlocal b
+        a, b = b, a + b
+        return a
+
+    return fab_inner
 
 
-
+fab = fab_outer()
+print(fab())
+print(fab())
