@@ -42,7 +42,7 @@ for _ in range(10):
 
 全局变量：
 
-局部变量：
+局部变量：Python 的局部变量只有 function scope, if 语句定义的变量不会产生新的作用域。
 
 闭包变量：
 
@@ -248,5 +248,152 @@ name: Upload report to Codecov
 uses: codecov/codecov-action@v3
 with:
 	file: ./coverage.xml	
+```
+
+## Pdb(Python debugger)
+
+pdb 是 Python 官方提供的命令行 debugger，提供了暂停程序和检视程序状态这两项核心功能。
+
+暂停程序：
+
+可以修改源代码时，在源代码中想要暂停的地方加入 breakpoint()，通过 Python 命令运行代码时，会进入 Pdb 命令行界面。 
+
+ Pdb 命令行常用命令：
+
+- p： 代表 print， 可以打印变量。
+- w 或 where：查看当前调用栈。
+- l 或 lst：查看当前位置附近的源代码，默认打印当前行前后的11行代码，再输入一个 l ，它会往下再翻11行，l .(l 后跟点，回到当前行)， ll(longlst) 显示当前这个函数的全部代码。
+- u 或 up：改变当前帧。
+- d 或 down：往下调整栈帧。
+- n 或 next：运行下一行程序。
+- s：step，单步调试。s 与 n 只有在有函数调用时才有区别。
+- retval：通过 retval 命令拿到返回值。
+- until：until 9, 运行直到行数大于行数 9 。
+- c 或 continue：程序继续执行。
+- b 或 break：在无法对源代码进行修改的前提下设置断点，如 b 5，表示在对应的文件地第 5 行设置了断点。b inspect.currentframe()，表示在 currentframe() 函数里设置断点。b 和 break 命令是等价的，break 后什么都不加，会列出当前所有断点。
+- clear：clear 命令用来删除断点，clear 1 表示删除 编号为 1 的断点。
+- q 或 quit：退出 Pdb 。
+
+## Python 类(class)
+
+### class 背后的机制和原理
+
+当我们定义一个 class 时，首先相当于运行了所有在这个 class 里面的代码，然后把产生的所有局部变量的名字和其对应值都保存到这个 class 的 `__dict__`里面，然后建立一个 type，然后把这个 type 赋值给了这个 class 的名字的变量。
+
+使用type动态创建类，type函数接受三个参数，第一个是类的名字，第二是这个类的父类，第三是存储类属性的 dictionary。
+
+```
+#class A：
+#	name = 'AAA'
+#	def f(self):
+#		print(1)
+def f(self):
+	print(1)
+d = {
+'name': 'AAA',
+ 'f': f
+}
+A = type('A', (), d)
+```
+
+### MRO(Method Resolution Order)
+
+MRO 即方法解析顺序（Method Resolution Order）。它是 Python 用于在多重继承情况下确定调用方法和属性时查找顺序的一种机制。
+
+```
+# 获取类 M 的 MRO
+print(M.__mro__)
+print(M.mro())
+```
+
+Python MRO 从 Python 2.3 开始使用 1996年提出的 C3 线性化算法用作 MRO 算法。
+
+C3 线性化算法满足三个属性：
+
+- local precedence order:  局部优先顺序，当 class 继承了多个父类时，优先使用写在前面的 class，除了 这个类外，这个类的所有的子类也要保证这个顺序。
+- monotonicity：单调性，任何一个 class 使用方法必须来自它的直接父类，不可以直接跳过父类往上寻找。
+- extended precedence graph：extended precedence graph 是描述子类和父类之间的继承关系。
+
+### class里定义的函数是怎么变成方法的？
+
+```
+class A：
+	def f(self, data):
+		print(self.name)
+		print(data)
+o = A()
+print(A.f) # function
+print(o.f) # bound method
+```
+
+上述示例中，A.f 就是一个非常普通的 function，o.f 已经变成 bound method，而所谓的 bound method 就是这个函数上绑定了一个对象，o.f 实际上就是返回了一个绑定在 o 自己本身上面的一个 method，当调用 o.f 时不需要给出 self 这个参数，在调用 o.f 时把自己这个 object 作为第一个参数传进去，o.f 不再是在 class A 定义的 f 函数。
+
+当我们在 class A 里面定义了这个函数 f 的时候，实际上产生了一个 function object , 然后 这个 function object 保存到 class A 的 `__dict__` 里面，在 o.f调用时由于 f 这个名字并不在 o 的 `__dict__` 里面，所以会在 class A 里寻找 f 属性，从 class A 的  `__dict__` 取出 f 这个属性，这时 f 还是一个 function object。
+
+在使用读取属性，顺着 MRO 从类里拿到一个 attribute 的时候，首先会检查属性有没有 descriptor `__get__` 函数，如果有 `__get__` 函数，返回的不再是这个 attribute，而是这个 attribute 调用 descriptor `__get__`函数的返回值。o.f 在属性查找过程中在 class A 中查找，返回的并不是 A.f，而是 A.f  `__get__`函数的返回值，这个返回值是一个绑定了调用对象 o 的方法的 object，因此在调用 o.f 时只需要传入 self 之后的内容，o.f会自动地把self 对应的 object 补到第一个参数地位置。
+
+了解上述原理后，可以解决在动态给对象或类增加函数或方法时，需不需要写 self 参数，调用时要不要传递 self 参数。
+
+```
+class A:
+	pass
+def f(self, data):
+    print(self.name)
+    print(data)
+# A.f = f
+# o = A()
+# o.f('hello') 因为在类上定义 f 函数, 在调用 f 函数时, 会自动把 function 转换为 绑定在对象 o 上的 method, 不需要传入 self 参数
+
+o = A()
+o.f = f
+# o.f('hello') 由于 f 定义在对象上，存在了对象的 __dict__ 里面, 在调用时就不再会通过 descriptor get 函数返回绑定对象的 method, 需要在调用时传入 self 参数。
+# 正确调用 f 
+o.f(o, 'hello')
+
+```
+
+小测试：
+
+```
+class FuncDescr:
+	def __get(self, *args):
+		def f(self, data):
+    		print(self.name)
+    		print(data)
+    	return f
+class A:
+	f = FuncDescr()
+o = A()
+o.name = 'Bob'
+# 下面调用 f 函数, 哪个是对的?
+o.f('hello')
+o.f(o, 'hello')
+```
+
+### metaclass
+
+A 指定元类为M，而不是继承这样的写法，这时我们称 M 为 A 的元类。
+
+```
+class M(type):
+	def __new__(cls, name, bases, dict):
+		return type.__new__(cls, name, bases, dict)
+class A(metaclass=M)：# 等价于 A = M('A', (), {})
+	pass
+```
+
+使用元类可以使类创建过程更加灵活，metaclass 一般是用来解决继承没办法解决的问题的。
+
+```
+class M(type):
+	def __new__(cls, name, bases, dict):
+		return type.__new__(cls, name, bases, dict)
+	def __init__(cls, name, bases, dict):
+		return type.__init__(cls, name, bases, dict)
+    def __call__(cls, *args, **kwargs):
+    	# 创建 A 实例时被调用
+    	return type.__call__(cls, *args, **kwargs)
+class A(metaclass=M)：
+	pass
 ```
 
